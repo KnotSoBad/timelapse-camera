@@ -6,7 +6,6 @@ A personal project to create a customizable, standalone timelapse camera using a
 * build
 
 ## Remaining Program Steps
-* add something in timelapse_capture.py for timelapse mode: "thin" to account for the delay between request and capture
 * prevent potential bug in timelapse_capture.py that would delete an excessive number of photos to make room for a proportionally large incoming capture file
 
 ## Remaining GitHub Page Steps

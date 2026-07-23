@@ -317,7 +317,7 @@ def select_timelapse():
 def take_capture():
     """Sends /capture http request to ESP32 halts program until the full JPEG is received
     
-    Return:
+    Returns:
         (jpeg_bytes, capture_time, delay_time) on success
         (None, None, None) on failure
     """
@@ -342,6 +342,14 @@ def take_capture():
 def save_photo(jpeg_bytes, capture_time):
     """
     Writes the JPEG to disk and returns (filename, size_bytes)
+    
+    Args:
+        jpeg_bytes (str): size of photo in bytes
+        capture_time (float): the time.time() at which the capture was "taken" (recieved by program)
+
+    Returns:
+        str: filename (not path)
+        int: size of photo in bytes
     """
     global photo_counter
     filename = f"image{photo_counter}.jpg"
@@ -393,19 +401,21 @@ def thin_out_photos():
 
 def recompute_capture_wait_time(photos):
     """Recomputes capture_wait_time as the average time gap between
-    consecutive photos in the given list, ordered by capture time.
+    consecutive photos in the given list minus the average capture delay.
 
     Args:
         photos (list of dicts including key "time"): details for every saved image
     
-    Return:
-        int: average time between photos
+    Returns:
+        float (avg_time): anticipated time between captures that should approximate the existing avg time between photos
     """
 
+    # not enough data (0 or 1 photos), leave unchanged
     if len(photos) < 2:
-        return capture_wait_time  # not enough data, leave unchanged
+        return capture_wait_time
  
     times = sorted(p["time"] for p in photos)
+    delays = sorted(p["capture_delay"] for p in photos)
  
     # goes through pairs of times in "times"
     # aka gaps = [t2 - t1 for t1, t2 in zip(times,times[1:])]
@@ -413,7 +423,20 @@ def recompute_capture_wait_time(photos):
     for t1, t2 in zip(times,times[1:]):
         gaps.append(t2 - t1)
     
-    return sum(gaps) / len(gaps)
+    avg_time_gap = sum(gaps) / len(gaps)
+    
+    gaps = []
+    for d1, d2 in zip(delays,delays[1:]):
+        gaps.append(d2-d1)
+        
+    avg_delay_gap = sum(gaps) / len(gaps)
+    
+    
+    # if possible, update capture rate to be [avg_delay_gap] seconds earlier so the delay doesn't keep pushing the average time later the longer the program runs
+    if avg_time_gap > avg_delay_gap:
+        return avg_time_gap - avg_delay_gap
+    else:
+        return 0
 
 
 # =======================
@@ -511,6 +534,7 @@ def main():
             # default option to thin every other existing image
             # clear half of the images, add the next image that matches the new time spacing, then continue program
             elif OVERFLOW_HANDLING == "thin":
+                
                 # loop until there is space for the next image
                 while total_bytes_used + size_bytes > allocated_space:
                     print("Allocated space insufficient. Timelapse mode: thin")
