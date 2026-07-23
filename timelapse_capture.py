@@ -9,6 +9,7 @@ output directory, wait time between pictures
 The available timelapse modes are:
     halt - stops when storage limit is reached
     loop - removes the earliest images to clear disk space for incoming images
+    thin - removes every other image to clear disk space for incoming images and takes new image as needed to approximate a consistent time between pictures
     
 """
 
@@ -30,9 +31,9 @@ import shutil
 # ===================
 ESP32_IP = "10.42.0.247"
 CAPTURE_URL = f"http://{ESP32_IP}/capture"                                         # TODO
-OUTPUT_DIR = os.path.expanduser("~/Documents/timelapse-camera/")    # folder where images are stored
+OUTPUT_DIR = os.path.expanduser("~/Desktop/ElectronicProjects/timelapse-camera/")    # folder where images are stored
 
-allocated_space = 5_000_000     # total bytes the program is allowed to use
+allocated_space = 500_000     # total bytes the program is allowed to use
 capture_wait_time = 0.5         # seconds between captures (float, adjustable)
 REQUEST_TIMEOUT = 30            # seconds to wait for ESP32 response
 OVERFLOW_HANDLING = "thin"      # when out of space, either stops (halt), clears half (thin), or removes first (loop)
@@ -51,17 +52,84 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 #      Functions
 # ===================
 
-# TODO FIXME!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-def valid_details(text):
-    return True
+def valid_details(text, path):
+    """Returns a boolean as to whether the text provided is correctly formatted as a details.txt file 
+    
+    Params:
+        text (String): the contents of a details.txt file
+        path (os.path): the path to the details.txt file
+        
+    Returns:
+        boolean: whether the details.txt file is valid to continue the timelapse of the folder it is in
+    """
+    
+    try:
+        details = text.split("\n")
+        
+        ### Check ESP32 IP address ###
+        IP_nums = details[0].split(" = ")[1].split(".")
+        # length check (fits __.__.__.__ format)
+        if len(IP_nums) < 4:
+            raise TypeError("The ESP32 IP address has fewer than 4 fields (correct format: #.#.#.#)")
+        elif len(IP_nums) > 4:
+            raise TypeError("The ESP32 IP address has more than 4 fields (correct format: #.#.#.#)")
+        
+        # number check (fits #.#.#.# format)
+        for num in IP_nums:
+            int(num)
+    except Exception as ESP32_IP_read_problem:
+        print(f"Error in details.txt at {path}")
+        print(Exception)
+        
+    try:    
+        ### Check allocated_space, capture_wait_time, REQUEST_TIMEOUT, and photo_counter ###
+        # try to convert them to their respective  
+        int(details[3].split(" = ")[1])
+        float(details[4].split(" = ")[1])
+        float(details[5].split(" = ")[1])
+        int(details[8].split(" = ")[1])
+    except Exception as numerical_vars_read_problem:
+        print(f"Error in details.txt at {path}")
+        print(Exception)
+    
+    try:
+        if not details[6].split(" = ")[1] in ["halt","loop","thin"]:
+            raise ValueError("The capture mode has to be 'halt', 'loop', or 'thin'.")
+    except Exception as OVERFLOW_HANDLING_read_problem:
+            print(f"Error in details.txt at {path}")
+            print(Exception)
 
+    try:
+        # separate different photos
+        photo_list = details[11].split(";")
+        for photo in photo_list:
+            if photo == "":
+                continue
+            
+            # separate photo details
+            photo = photo.split(",")
+            photo_dict = {
+            "name": photo[0],
+            "size_bytes": int(photo[1]),
+            "time": float(photo[2]),
+            "capture_delay": float(photo[3])
+            }
+            photo_array.append(photo_dict)
+            total_bytes_used += photo_dict.get("size_bytes")
+    
+    except Exception as formatting_problem:
+        print("An error flagged when trying to read a details.txt file:")
+        print(formatting_problem)
+        
 
 def save_details():
+    
     global ESP32_IP, CAPTURE_URL, OUTPUT_DIR, allocated_space, capture_wait_time, REQUEST_TIMEOUT, OVERFLOW_HANDLING, total_bytes_used, photo_array, photo_counter
     
+    # write all relevant variables to the folder's details.txt file
     with open(os.path.join(OUTPUT_DIR,"details.txt"),"w") as w:
         w.write(f"ESP32_IP = {ESP32_IP}\n")
-        w.write(f"OUTPUT_DIR = {OUTPUT_DIR}\n\n")
+        w.write(f"OUTPUT_DIR = {OUTPUT_DIR} [for human reference only, ignored by program]\n\n")
 
         w.write(f"allocated_space = {allocated_space}\n")
         w.write(f"capture_wait_time = {capture_wait_time}\n")
@@ -72,6 +140,8 @@ def save_details():
 
         w.write("Photo array:\n")
 
+        # create a list of lists --> aka list of photos with format:
+        # name, size in bytes, time taken, delay between request and capture;[next photo];[next photo]
         written_photo_array = []
         for photo_dict in photo_array:
             
@@ -216,7 +286,6 @@ def setup_timelapse(foldername):
             return
             
 
-
 def select_timelapse():
     """
     Prompts user to either choose an existing timelapse or create a new timelapse, then redirects to setup_timelapse to create timelapse
@@ -227,7 +296,7 @@ def select_timelapse():
     for item in dir_list:
         try:
             with open(os.path.join(OUTPUT_DIR,item,"details.txt")) as reader:
-                if valid_details(reader.read()):
+                if valid_details(reader.read(),os.path.join(OUTPUT_DIR,item,"details.txt")):
                     valid_list.append(item)
                 continue
 
