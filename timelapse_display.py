@@ -9,7 +9,7 @@ import cv2
 # ===================
 #    Configuration
 # ===================                                                            TODO:
-IMAGE_DIR = os.path.expanduser("~/Documents/timelapse-camera/timelapse5")    # image folder
+IMAGE_DIR = os.path.expanduser("~/Documents/timelapse-camera/timelapse6")    # image folder
 loop_time = 7.5     # in seconds (float)
 
 
@@ -62,13 +62,19 @@ def main():
                 if i >= len(images):
                     i = 0
                 
+                before_display_time = time.time()
                 print(f"Displaying: {images[i]}")
+                display_image(images[i])
+                time_diff = time.time()-before_display_time
                 display_image(images[i])
 
                 i += 1
 
+                print(f"load time: {time_diff}\nTarget: {loop_time/len(images)}")
                 # wait as needed so the loop matches target time (for a static photo folder)
-                time.sleep(loop_time/len(images))
+                if time_diff < loop_time/len(images):
+                    print(f"sleeping {loop_time/len(images) - time_diff}")
+                    time.sleep(loop_time/len(images) - time_diff)
             
             else:
                 print("No images found.")

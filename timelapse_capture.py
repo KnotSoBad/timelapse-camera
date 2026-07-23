@@ -9,6 +9,7 @@ output directory, wait time between pictures
 The available timelapse modes are:
     halt - stops when storage limit is reached
     loop - removes the earliest images to clear disk space for incoming images
+    thin - removes every other image to clear disk space for incoming images and takes new image as needed to approximate a consistent time between pictures
     
 """
 
@@ -30,9 +31,9 @@ import shutil
 # ===================
 ESP32_IP = "10.42.0.247"
 CAPTURE_URL = f"http://{ESP32_IP}/capture"                                         # TODO
-OUTPUT_DIR = os.path.expanduser("~/Documents/timelapse-camera/")    # folder where images are stored
+OUTPUT_DIR = os.path.expanduser("~/Desktop/ElectronicProjects/timelapse-camera/")    # folder where images are stored
 
-allocated_space = 5_000_000     # total bytes the program is allowed to use
+allocated_space = 500_000     # total bytes the program is allowed to use
 capture_wait_time = 0.5         # seconds between captures (float, adjustable)
 REQUEST_TIMEOUT = 30            # seconds to wait for ESP32 response
 OVERFLOW_HANDLING = "thin"      # when out of space, either stops (halt), clears half (thin), or removes first (loop)
